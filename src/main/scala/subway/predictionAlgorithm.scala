@@ -6,15 +6,18 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 
-import scala.collection.mutable
 import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 
 /**地铁线路预测算法
  * Created by Flyln on 16/5/4.
  */
 object predictionAlgorithm {
-
-  var tmp1 = 0
+  var a1One = 0
+  var a1Two = 0
+  var a2One = 0
+  var a2Two = 0
+  var a2Three = 0
+  var a2Four = 0
 
   def main(args: Array[String]) {
     val conf = new SparkConf().setMaster("local").setAppName("prediction")
@@ -44,7 +47,12 @@ object predictionAlgorithm {
     val result = startUp(rdd,metroLineArray,bayesNewOrHistory,attArray)
 
       result.saveAsTextFile("/Users/Flyln/Desktop/predictData/result")
-    println(tmp1)
+    println(a1One)
+    println(a1Two)
+    println(a2One)
+    println(a2Two)
+    println(a2Three)
+    println(a2Four)
   }
 
   def startUp(rdd: RDD[String],metroLineArray: Array[String],bayesNewOrHistory: NaiveBayesModel,attArray:Array[(String,Int)]): RDD[String] = {
@@ -217,8 +225,12 @@ object predictionAlgorithm {
     }
     val matrix = constructMarkovMatrix(matrixArray)
     val maxTimeArray = chooseFromMatrix(matrix,trip)
-    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) maxTimeArray(2)
+    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
+      a1One += 1
+      maxTimeArray(2)
+    }
     else {
+      a1Two += 1
       line1 + "Y"
     }
   }
@@ -257,68 +269,74 @@ object predictionAlgorithm {
         chooseLineArrive = metroLineArray(i).split(",")(1)
       }
     }
-    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) maxTimeArray(2)
-    else if (chooseLineDeparture == arrive && chooseLineArrive == home) chooseOneLineFromMatrix(matrix, trip)
-    else if (chooseLineDeparture == arrive && chooseLineArrive == departure) chooseOneLineFromMatrix(matrix, trip)
-//    else {
-//      tmp += 1
-//      line1 + "Y"
-//    }
+    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
+      a2One += 1
+      maxTimeArray(2)
+    }
+    else if (chooseLineDeparture == arrive && chooseLineArrive == home) {
+      a2Two += 1
+      chooseOneLineFromMatrix(matrix, trip)
+    }
+    else if (chooseLineDeparture == arrive && chooseLineArrive == departure) {
+      a2Three +=1
+      chooseOneLineFromMatrix(matrix, trip)
+    }
+    else {
+      a2Four += 1
+      line1 + "Y"
+    }
 //    else {
 //      maxForTwoArray(theNextCurrentFromWeekAndTime(trip,weekNum,timeNum)) + "Y"
 //    }
-    else historyBackHome(trip,metroLineArray,home) + "Y"
+//    else historyBackHome(trip,metroLineArray,home) + "Y"
   }
 
 
 
-  /**
-   * 从所有线路中找出返回常住地的所有线路，并选出访问次数最多的线路
-   * @param trip 历史路线
-   * @param metroLineArray 所有线路集合
-   * @param home 常住地
-   * @return
-   */
-  def historyBackHome(trip: ArrayBuffer[String],metroLineArray: Array[String], home: String):String = {
-    val homeArray = new ArrayBuffer[String]
-    val departureArray = new ArrayBuffer[String]
-    for (i <- metroLineArray.indices) {
-      if (metroLineArray(i).split(",")(1) == home) homeArray += metroLineArray(i).split(",")(2)
-    }
-    for (i <- metroLineArray.indices) {
-      if (metroLineArray(i).split(",")(0) == home) departureArray += metroLineArray(i).split(",")(2)
-    }
-    val tripArray = new ArrayBuffer[String]
-    for (i <- homeArray.indices) {
-      for (j <- trip.indices) {
-        if (trip(j) == homeArray(i)) tripArray += trip(j)
-      }
-    }
-    val distinctTrip = tripArray.distinct
-    val timeArray = new Array[Int](distinctTrip.length)
-    for (i <- distinctTrip.indices) {
-      for (j <- tripArray.indices) {
-        if (tripArray(j) == distinctTrip(i)) timeArray(i) += 1
-      }
-    }
-    if (timeArray.length == 0) {
-      tmp1 += 1
-      departureArray.head
-    }
-    else distinctTrip(maxForArray(timeArray))
-  }
-
-  def maxForArray(tmpArray: Array[Int]):Int = {
-      var max = tmpArray.head
-      var k = 0
-      for (i <- tmpArray.indices) {
-        if (tmpArray(i) > max) {
-          max = tmpArray(i)
-          k= i
-        }
-      }
-      k
-  }
+//  /**
+//   * 从所有线路中找出返回常住地的所有线路，并选出访问次数最多的线路
+//   * @param trip 历史路线
+//   * @param metroLineArray 所有线路集合
+//   * @param home 常住地
+//   * @return
+//   */
+//  def historyBackHome(trip: ArrayBuffer[String],metroLineArray: Array[String], home: String):String = {
+//    val homeArray = new ArrayBuffer[String]
+//    val departureArray = new ArrayBuffer[String]
+//    for (i <- metroLineArray.indices) {
+//      if (metroLineArray(i).split(",")(1) == home) homeArray += metroLineArray(i).split(",")(2)
+//    }
+//    for (i <- metroLineArray.indices) {
+//      if (metroLineArray(i).split(",")(0) == home) departureArray += metroLineArray(i).split(",")(2)
+//    }
+//    val tripArray = new ArrayBuffer[String]
+//    for (i <- homeArray.indices) {
+//      for (j <- trip.indices) {
+//        if (trip(j) == homeArray(i)) tripArray += trip(j)
+//      }
+//    }
+//    val distinctTrip = tripArray.distinct
+//    val timeArray = new Array[Int](distinctTrip.length)
+//    for (i <- distinctTrip.indices) {
+//      for (j <- tripArray.indices) {
+//        if (tripArray(j) == distinctTrip(i)) timeArray(i) += 1
+//      }
+//    }
+//    if (timeArray.length == 0) departureArray.head
+//    else distinctTrip(maxForArray(timeArray))
+//  }
+//
+//  def maxForArray(tmpArray: Array[Int]):Int = {
+//      var max = tmpArray.head
+//      var k = 0
+//      for (i <- tmpArray.indices) {
+//        if (tmpArray(i) > max) {
+//          max = tmpArray(i)
+//          k= i
+//        }
+//      }
+//      k
+//  }
 
   def maxForTwoArray(twoArray:Array[Array[Int]]):String = {
     val tmpArray = new ArrayBuffer[Int]
