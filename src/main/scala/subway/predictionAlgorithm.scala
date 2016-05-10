@@ -18,17 +18,20 @@ object predictionAlgorithm {
   var a2Two = 0
   var a2Three = 0
   var a2Four = 0
+  var a2Five = 0
+  var a2Six = 0
+  var a3 = 0
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setMaster("local").setAppName("prediction")
+    val conf = new SparkConf().setMaster("local[6]").setAppName("prediction")
     val sc = new SparkContext(conf)
 
-    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/sample1101")
+    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/sample1267")
     val metroLine = sc.textFile("/Users/Flyln/Desktop/predictData/metroLine")
-    val trainingData = sc.textFile("/Users/Flyln/Desktop/predictData/trainingData")
+    val trainingData = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/trainingData")
     val metroLineArray = metroLine.collect()
 
-    val attArray = rdd.map(_.split(",")).map(r => passengerTripListAddFeatures(r(0), r(1), r(2), r(3), r(4), r(5), r(6), r(7), r(8))).map(x => {
+    val attArray: Array[(String, Int)] = rdd.map(_.split(",")).map(r => passengerTripListAddFeatures(r(0), r(1), r(2), r(3), r(4), r(5), r(6), r(7), r(8))).map(x => {
       val tripArray = x.tripList.split("->")
       val tmpArray = new ArrayBuffer[String]
       for (i <- x.tripList.split("->").indices) {
@@ -46,13 +49,16 @@ object predictionAlgorithm {
 
     val result = startUp(rdd,metroLineArray,bayesNewOrHistory,attArray)
 
-      result.saveAsTextFile("/Users/Flyln/Desktop/predictData/result")
+      result.repartition(1).saveAsTextFile("/Users/Flyln/Desktop/predictData/moreThan100/result")
     println(a1One)
     println(a1Two)
     println(a2One)
     println(a2Two)
     println(a2Three)
     println(a2Four)
+    println(a2Five)
+    println(a2Six)
+    println(a3)
   }
 
   def startUp(rdd: RDD[String],metroLineArray: Array[String],bayesNewOrHistory: NaiveBayesModel,attArray:Array[(String,Int)]): RDD[String] = {
@@ -65,16 +71,20 @@ object predictionAlgorithm {
       val tmpArray = new ArrayBuffer[String]()
       val weekNumArray = new ArrayBuffer[Int]()
       val timeNumArray = new ArrayBuffer[Int]()
+      val departureArray = new ArrayBuffer[String]
+      val arriveArray = new ArrayBuffer[String]
       val predictionLine = new ArrayBuffer[String]
       for (i <- (trip.size - 6) to (trip.size - 2)) {
         for (j <- 0 to i) {
           tmpArray += trip(j)
           weekNumArray += weekNum(j).toInt
           timeNumArray += timeNum(j).toInt
+          departureArray += departure(j)
+          arriveArray += arrive(j)
         }
         if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
         else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departure(i),arrive(i))
-        else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence, departure(i), arrive(i),weekNumArray,timeNumArray)
+        else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence, departure(i), arrive(i),weekNumArray,timeNumArray,departureArray,arriveArray,attArray)
         else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(attArray, tmpArray,metroLineArray,departure(i),arrive(i))
         else predictionLine += "A4" + "->" + algorithmFour(tmpArray, weekNumArray, timeNumArray)
       }
@@ -96,6 +106,20 @@ object predictionAlgorithm {
           algorithm(i) += "TY"
         }
         else algorithm(i) += "FY"
+      }
+        else if (trip(i).contains("V")) {
+        if (trip(i).init == lastFiveTrip(i)) {
+          k += 1
+          algorithm(i) += "TV"
+        }
+        else algorithm(i) += "FV"
+      }
+      else if (trip(i).contains("S")) {
+        if (trip(i).init == lastFiveTrip(i)) {
+          k += 1
+          algorithm(i) += "TS"
+        }
+        else algorithm(i) += "FS"
       }
       else {
         if (trip(i) == lastFiveTrip(i)) {
@@ -245,18 +269,27 @@ object predictionAlgorithm {
    * @param arrive 当前的到达
    * @return
    */
-  def algorithmTwo(trip: ArrayBuffer[String],metroLineArray: Array[String], home: String, departure: String, arrive: String,weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int]): String = {
+  def algorithmTwo(trip: ArrayBuffer[String],metroLineArray: Array[String], home: String, departure: String, arrive: String,weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String],attArray:Array[(String,Int)]): String = {
     val matrixArray = new ArrayBuffer[String]()
     var chooseLineDeparture = ""
     var chooseLineArrive = ""
     var line = ""
     var line1 = ""
+    var line2 = ""
+    val week = weekNum.last
+    val time = timeNum.last
     for (i <- metroLineArray.indices) {
       if (arrive == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
     }
     for (i <- metroLineArray.indices) {
       if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
     }
+//    if ((week == 4&&time==2) || (week > 4 && week < 6) && (week == 7 && time < 2)) line2 = mostVisitedForWeek(trip,weekNum,timeNum)
+//    else {
+//      for (i <- metroLineArray.indices) {
+//        if (metroLineArray(i).split(",")(1) == mostArrive(arriveArray) && metroLineArray(i).split(",")(0) == mostDeparture(departureArray)) line2 = metroLineArray(i).split(",")(2)
+//      }
+//    }
     val threshold = 2
     for (i <- trip.indices) {
       matrixArray += trip(i)
@@ -281,14 +314,154 @@ object predictionAlgorithm {
       a2Three +=1
       chooseOneLineFromMatrix(matrix, trip)
     }
-    else {
+    else if (departure == mostDeparture(departureArray) && arrive == mostArrive(arriveArray)) {
       a2Four += 1
       line1 + "Y"
     }
+    else if (tripNew(trip)) {
+      a2Five += 1
+      attArray.sortBy(_._2).last._1 + "V"
+      //chooseFromMatrix(constructMarkovMatrix(trip.init),trip.init)(2) + "V"
+     // theMostCurrentArriveFromWeekAndTimeMatrix(trip,weekNum,timeNum,metroLineArray,arrive) + "V"
+    }
+    else {
+      a2Six += 1
+      attArray.sortBy(_._2).last._1 + "V"
+      //theMostCurrentArriveFromWeekAndTimeMatrix(trip,weekNum,timeNum,metroLineArray,arrive) + "S"
+      //line1 + "S"
+     // chooseFromMatrix(constructMarkovMatrix(trip.init),trip.init)(2) + "S"
+    }
+//    else {
+//      a2Four += 1
+//      line1 + "Y"
+//    }
 //    else {
 //      maxForTwoArray(theNextCurrentFromWeekAndTime(trip,weekNum,timeNum)) + "Y"
 //    }
 //    else historyBackHome(trip,metroLineArray,home) + "Y"
+  }
+
+  def theMostCurrentArriveFromWeekAndTimeMatrix(trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],metroLineArray:Array[String],arrive:String):String = {
+    val tmpArray = new ArrayBuffer[Int]
+    val arriveArray = new ArrayBuffer[String]
+    val weekAndTimeArray = constructWeekAndTimeMatrix(trip,weekNum,timeNum)
+    val timeArray = new ArrayBuffer[Int]
+    val maxArray = new ArrayBuffer[Int]
+    for (i <- weekAndTimeArray.indices) tmpArray += weekAndTimeArray(i)(0)
+    for (i <- metroLineArray.indices) {
+      if (arrive == metroLineArray(i).split(",")(1)) arriveArray += metroLineArray(i).split(",")(2)
+    }
+    for (i <- tmpArray.indices) {
+      for (j <- arriveArray.indices) {
+        if (tmpArray(i).toString == arriveArray(j)) timeArray += tmpArray(i)
+      }
+    }
+    if (timeArray.isEmpty) trip.init.last
+    else {
+      for (i <- timeArray.indices) {
+        for (j <- tmpArray.indices) {
+          if (timeArray(i) == tmpArray(j)) maxArray += j
+        }
+      }
+      val tmp = new Array[Int](maxArray.length)
+      for (i <- maxArray.indices) tmp(i) = weekAndTimeArray(maxArray(i))(1)
+      tmpArray(maxArray(maxForArray(tmp))).toString
+    }
+  }
+
+
+  /**
+   * 当前路线是否为新的路线
+   * @param trip 历史轨迹，最后一条为当前路线
+   * @return
+   */
+  def tripNew(trip: ArrayBuffer[String]):Boolean = {
+    val tmpArray = new ArrayBuffer[String]
+    for (i <- 0 to (trip.length - 2)) tmpArray += trip(i)
+    val lastTrip = trip.last
+    var k = 0
+    val distinctArray: ArrayBuffer[String] = tmpArray.distinct
+    for (i <- distinctArray.indices) {
+      if (lastTrip == distinctArray(i)) k += 1
+    }
+    if (k > 0) false
+    else true
+  }
+
+
+  /**
+   * 最多到达的车站
+   * @param arrive 历史到达车站集合
+   * @return
+   */
+  def mostArrive(arrive:ArrayBuffer[String]):String = {
+    val distinctArrive = arrive.distinct
+    val tmpArray = new Array[Int](distinctArrive.length)
+    for (i <- distinctArrive.indices) {
+      for (j <- arrive.indices) {
+        if (distinctArrive(i) == arrive(j)) tmpArray(i) += 1
+      }
+    }
+    distinctArrive(maxForArray(tmpArray))
+  }
+
+  /**
+   * 最多离开车站
+   * @param departure 历史离开车站集合
+   * @return
+   */
+  def mostDeparture(departure: ArrayBuffer[String]):String = {
+    val distinctDeparture = departure.distinct
+    val tmpArray = new Array[Int](distinctDeparture.length)
+    for (i <- distinctDeparture.indices) {
+      for (j <- departure.indices) {
+        if (distinctDeparture(i) == departure(j)) tmpArray(i) += 1
+      }
+    }
+    distinctDeparture(maxForArray(tmpArray))
+  }
+
+  /**
+   * 周末走过最多的路线
+   * @param trip 历史轨迹
+   * @param weekNum 星期
+   * @param timeNum 出发时间
+   * @return
+   */
+  def mostVisitedForWeek(trip: ArrayBuffer[String], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):String = {
+    val weekTrip = new ArrayBuffer[String]
+//    val morningWeekTrip = new ArrayBuffer[String]
+//    val afternoonWeekTrip = new ArrayBuffer[String]
+//    val eveningWeekTrip = new ArrayBuffer[String]
+    for (i <- trip.indices) {
+      if (weekNum(i) == 5 || weekNum(i) == 6) weekTrip += trip(i)
+    }
+//    for (i <- trip.indices) {
+//      if ((weekNum(i) == 5 || weekNum(i) == 6)&&timeNum(i) == 0) morningWeekTrip += trip(i)
+//    }
+//    for (i <- trip.indices) {
+//      if ((weekNum(i) == 5 || weekNum(i) == 6)&&timeNum(i) == 1) afternoonWeekTrip += trip(i)
+//    }
+//    for (i <- trip.indices) {
+//      if ((weekNum(i) == 5 || weekNum(i) == 6)&&timeNum(i) == 2) eveningWeekTrip += trip(i)
+//    }
+    maxTimeForStringArray(trip)
+  }
+
+  /**
+   * 返回数组中出现次数最多的元素
+   * @param tmpArray 数组
+   * @return
+   */
+  def maxTimeForStringArray(tmpArray: ArrayBuffer[String]):String = {
+    val distinctArray = tmpArray.distinct
+    val timeArray = new Array[Int](distinctArray.length)
+    for (i <- distinctArray.indices) {
+      for (j <- tmpArray.indices) {
+        if (distinctArray(i) == tmpArray(j)) timeArray(i) += 1
+      }
+    }
+    distinctArray(maxForArray(timeArray))
   }
 
 
@@ -326,17 +499,17 @@ object predictionAlgorithm {
 //    else distinctTrip(maxForArray(timeArray))
 //  }
 //
-//  def maxForArray(tmpArray: Array[Int]):Int = {
-//      var max = tmpArray.head
-//      var k = 0
-//      for (i <- tmpArray.indices) {
-//        if (tmpArray(i) > max) {
-//          max = tmpArray(i)
-//          k= i
-//        }
-//      }
-//      k
-//  }
+  def maxForArray(tmpArray: Array[Int]):Int = {
+      var max = tmpArray.head
+      var k = 0
+      for (i <- tmpArray.indices) {
+        if (tmpArray(i) > max) {
+          max = tmpArray(i)
+          k= i
+        }
+      }
+      k
+  }
 
   def maxForTwoArray(twoArray:Array[Array[Int]]):String = {
     val tmpArray = new ArrayBuffer[Int]
@@ -359,6 +532,7 @@ object predictionAlgorithm {
    * @return
    */
   def algorithmThree(attArray: Array[(String,Int)], trip: ArrayBuffer[String],metroLineArray: Array[String],departure:String,arrive:String): String = {
+    a3 += 1
     val tripList = trip.distinct
     val tmpArray = new ArrayBuffer[(String, Int)]
     for (i <- attArray.indices) {
