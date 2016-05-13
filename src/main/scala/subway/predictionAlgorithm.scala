@@ -104,7 +104,7 @@ object predictionAlgorithm {
           arriveArray += arrive(j)
         }
         if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
-        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,clusterArray,clusterResult)
+        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,weekNumArray,timeNumArray,clusterArray,clusterResult,transferLineArray,weekAndTimeLine)
         else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departure(i),arrive(i))
         else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence,weekNumArray,timeNumArray,departureArray,arriveArray)
         else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departure(i),arrive(i))
@@ -670,10 +670,10 @@ object predictionAlgorithm {
 //    else algorithmFiveSecond(trip)
 //  }
 
-  def algorithmFive(cardId:String,trip: ArrayBuffer[String], clusterArray: Array[((String,String),Int)],clusterResult:Array[String]):String = {
+  def algorithmFive(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)]):String = {
     if (tripNew(trip)) {
       a5One += 1
-      algorithmFiveFirst(cardId,trip,clusterArray,clusterResult) + "V"
+      algorithmFiveFirst(cardId,trip,weekNum,timeNum,clusterArray,clusterResult,transferLineArray,weekAndTimeLine) + "V"
     }
     else {
       a5Two += 1
@@ -681,25 +681,32 @@ object predictionAlgorithm {
     }
   }
 
-  def algorithmFiveFirst(cardId:String,trip: ArrayBuffer[String], clusterArray: Array[((String,String),Int)],clusterResult:Array[String]):String= {
+  def algorithmFiveFirst(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)]):String= {
     var clusterID = ""
+    var transferLine = ""
+    val theCurrentStatus = (weekNum.last, timeNum.last)
+    val theNextStatus = delegateFunctions.theNextWeekAndTime(theCurrentStatus)
     val theSameClusterIdArray = new ArrayBuffer[(String,Int)]
+    val weekAndTimeArray = new ArrayBuffer[(String, Int)]
+    val transArray = new ArrayBuffer[String]
     for (i <- clusterResult.indices) {
       if (cardId == clusterResult(i).split(",")(0)) clusterID = clusterResult(i).split(",")(1)
     }
-    for (i <- clusterArray.indices) {
-      if (clusterArray(i)._1._1 == clusterID) theSameClusterIdArray += ((clusterArray(i)._1._2,clusterArray(i)._2.toInt))
+    for (i <- transferLineArray.indices) {
+      if (trip.last == transferLineArray(i).split(",")(0)) transferLine = transferLineArray(i).split(",")(1)
     }
-//    val distinctTrip = trip.distinct
-//    val timeArray = new ArrayBuffer[(String,Int)]
-//    for (i <- distinctTrip.indices) {
-//      for (j <- theSameClusterIdArray.indices) {
-//        if (distinctTrip(i) != theSameClusterIdArray(j)._1) timeArray += theSameClusterIdArray(j)
-//      }
-//    }
-    val tmpArray = new Array[Int](theSameClusterIdArray.length)
-    for (i <- theSameClusterIdArray.indices) tmpArray(i) = theSameClusterIdArray(i)._2
-    theSameClusterIdArray(maxForArray(tmpArray))._1
+    for (i <- weekAndTimeLine.indices) {
+      if (theNextStatus == weekAndTimeLine(i)._1.split("=>")(0)) weekAndTimeArray += ((weekAndTimeLine(i)._1.split("=>")(1),weekAndTimeLine(i)._2))
+    }
+    for (i <- transferLineArray.indices) {
+      if (transferLine == transferLineArray(i).split(",")(1)) transArray += transferLineArray(i).split(",")(0)
+    }
+    for (i <- clusterArray.indices) {
+      if (clusterID == clusterArray(i)._1._1) theSameClusterIdArray += ((clusterArray(i)._1._2,clusterArray(i)._2))
+    }
+    val transAndWeekTime = delegateFunctions.theIntersectionOfTwoArray(transArray,weekAndTimeArray)
+    val transAndCluster = delegateFunctions.theIntersectionOfTwoArray(transArray, theSameClusterIdArray)
+    delegateFunctions.theMaxForTwoArray(transAndWeekTime,transAndCluster)
   }
 
   def algorithmFiveSecond(trip: ArrayBuffer[String]):String ={
