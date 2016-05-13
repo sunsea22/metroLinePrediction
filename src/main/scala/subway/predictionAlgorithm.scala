@@ -6,6 +6,7 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 
+
 import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 
 /**地铁线路预测算法
@@ -104,7 +105,7 @@ object predictionAlgorithm {
           arriveArray += arrive(j)
         }
         if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
-        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,weekNumArray,timeNumArray,clusterArray,clusterResult,transferLineArray,weekAndTimeLine)
+        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,arrive(i),attArray)
         else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departure(i),arrive(i))
         else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence,weekNumArray,timeNumArray,departureArray,arriveArray)
         else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departure(i),arrive(i))
@@ -670,10 +671,10 @@ object predictionAlgorithm {
 //    else algorithmFiveSecond(trip)
 //  }
 
-  def algorithmFive(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)]):String = {
+  def algorithmFive(cardID:String, trip: ArrayBuffer[String],transferLineArray:Array[String],metroLineArray: Array[String],arrive:String,attArray:Array[(String,Int)]):String = {
     if (tripNew(trip)) {
       a5One += 1
-      algorithmFiveFirst(cardId,trip,weekNum,timeNum,clusterArray,clusterResult,transferLineArray,weekAndTimeLine) + "V"
+      algorithmFiveFirst(cardID,trip,arrive,metroLineArray,transferLineArray,attArray) + "V"
     }
     else {
       a5Two += 1
@@ -681,38 +682,54 @@ object predictionAlgorithm {
     }
   }
 
-  def algorithmFiveFirst(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)]):String= {
-    var clusterID = ""
-    var transferLine = ""
-    val theCurrentStatus = (weekNum.last, timeNum.last)
-    val theNextStatus = delegateFunctions.theNextWeekAndTime(theCurrentStatus)
-    val theSameClusterIdArray = new ArrayBuffer[(String,Int)]
-    val weekAndTimeArray = new ArrayBuffer[(String, Int)]
-    val transArray = new ArrayBuffer[String]
-    for (i <- clusterResult.indices) {
-      if (cardId == clusterResult(i).split(",")(0)) clusterID = clusterResult(i).split(",")(1)
-    }
-    for (i <- transferLineArray.indices) {
-      if (trip.last == transferLineArray(i).split(",")(0)) transferLine = transferLineArray(i).split(",")(1)
-    }
-    for (i <- weekAndTimeLine.indices) {
-      if (theNextStatus == weekAndTimeLine(i)._1.split("=>")(0)) weekAndTimeArray += ((weekAndTimeLine(i)._1.split("=>")(1),weekAndTimeLine(i)._2))
-    }
-    for (i <- transferLineArray.indices) {
-      if (transferLine == transferLineArray(i).split(",")(1)) transArray += transferLineArray(i).split(",")(0)
-    }
-    for (i <- clusterArray.indices) {
-      if (clusterID == clusterArray(i)._1._1) theSameClusterIdArray += ((clusterArray(i)._1._2,clusterArray(i)._2))
-    }
-    val transAndWeekTime = delegateFunctions.theIntersectionOfTwoArray(transArray,weekAndTimeArray)
-    val transAndCluster = delegateFunctions.theIntersectionOfTwoArray(transArray, theSameClusterIdArray)
-    delegateFunctions.theMaxForTwoArray(transAndWeekTime,transAndCluster)
+//  def algorithmFiveFirst(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)],metroLineArray: Array[String],arrive:String):String= {
+//    var clusterID = ""
+//    var transferLine = ""
+//    val theCurrentStatus = (weekNum.last, timeNum.last)
+//    val theNextStatus = delegateFunctions.theNextWeekAndTime(theCurrentStatus)
+//    val theSameClusterIdArray = new ArrayBuffer[(String,Int)]
+//    val weekAndTimeArray = new ArrayBuffer[(String, Int)]
+//    for (i <- clusterResult.indices) {
+//      if (cardId == clusterResult(i).split(",")(0)) clusterID = clusterResult(i).split(",")(1)
+//    }
+//    for (i <- transferLineArray.indices) {
+//      if (trip.last == transferLineArray(i).split(",")(0)) transferLine = transferLineArray(i).split(",")(1)
+//    }
+//    for (i <- weekAndTimeLine.indices) {
+//      if (theNextStatus == weekAndTimeLine(i)._1.split("=>")(0)) weekAndTimeArray += ((weekAndTimeLine(i)._1.split("=>")(1),weekAndTimeLine(i)._2))
+//    }
+//    for (i <- clusterArray.indices) {
+//      if (clusterID == clusterArray(i)._1._1) theSameClusterIdArray += ((clusterArray(i)._1._2,clusterArray(i)._2))
+//    }
+//    val departureArray = delegateFunctions.metroLineBaseDeparture(metroLineArray,arrive)
+//    val transArray = delegateFunctions.theNextTransferLineBaseCurrent(transferLine, transferLineArray)
+//    val transAndWeekTime = delegateFunctions.theIntersectionOfTwoArray(transArray,weekAndTimeArray)
+//    val transAndCluster = delegateFunctions.theIntersectionOfTwoArray(transArray, theSameClusterIdArray)
+//    val departureAndWeekTime = delegateFunctions.theIntersectionOfTwoArray(departureArray, weekAndTimeArray)
+//    val departureAndCluster = delegateFunctions.theIntersectionOfTwoArray(departureArray, theSameClusterIdArray)
+//
+//    val a = delegateFunctions.theIntersectionOfKeyArray(departureAndWeekTime, departureAndCluster)
+//    val b = delegateFunctions.theIntersectionOfKeyArray(transAndWeekTime, transAndCluster)
+//
+//    delegateFunctions.theMaxForTwoArray(a, b)
+//  }
+
+  def algorithmFiveFirst(cardID: String,trip: ArrayBuffer[String], arrive: String, metroLineArray: Array[String],transferLineArray:Array[String],attArray:Array[(String,Int)]):String = {
+    val departureArray: ArrayBuffer[String] = delegateFunctions.metroLineBaseDeparture(metroLineArray, arrive)
+    val distinctTripArray = delegateFunctions.distinctTripBaseDepartureArray(trip,departureArray)
+    val thirdLineArray = delegateFunctions.theThirdLineFromTransferLineArray(transferLineArray)
+    val theNextLineArray = delegateFunctions.theSameElementOfTwoArray(distinctTripArray, thirdLineArray)
+    val result = delegateFunctions.theIntersectionOfArray(theNextLineArray, attArray)
+    //val a = cardID
+    result.sortBy(_._2).last._1
   }
 
   def algorithmFiveSecond(trip: ArrayBuffer[String]):String ={
     val matrix = constructMarkovMatrix(trip)
     chooseFromMatrix(matrix, trip)(2)
   }
+
+
 
 //  /**
 //   * 构建贝叶斯预测模型
