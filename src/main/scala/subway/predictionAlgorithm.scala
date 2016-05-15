@@ -5,8 +5,6 @@ import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
-
-
 import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 
 /**地铁线路预测算法
@@ -28,7 +26,7 @@ object predictionAlgorithm {
     val conf = new SparkConf().setMaster("local[6]").setAppName("prediction")
     val sc = new SparkContext(conf)
 
-    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/sample1267")
+    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/sampleChangeResidence")
     val metroLine = sc.textFile("/Users/Flyln/Desktop/predictData/metroLine")
     val trainingData = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/trainingData")
     val transferLine = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/transferLine")
@@ -105,10 +103,10 @@ object predictionAlgorithm {
           arriveArray += arrive(j)
         }
         if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
-        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,arrive(i),attArray)
+        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,departure(i),arrive(i),attArray,x.residence)
         else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departure(i),arrive(i))
         else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence,weekNumArray,timeNumArray,departureArray,arriveArray)
-        else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departure(i),arrive(i))
+        else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departure(i),arrive(i),x.residence)
         else predictionLine += "A4" + "->" + algorithmFour(tmpArray, weekNumArray, timeNumArray)
       }
       x.cardId + "," + calculateAccuracy(predictionLine, trip)
@@ -215,7 +213,7 @@ object predictionAlgorithm {
     }
     val sortList = timeList.sorted
     val a = sortList.last
-    val b = sortList(sortList.size - 2)
+    val b = sortList.init.last
     for (i <- timeList.indices) {
       if (timeList(i) == a) tmpClu = i
     }
@@ -290,7 +288,7 @@ object predictionAlgorithm {
     }
     else {
       a1Two += 1
-      line1 + "Y"
+      line + "Y"
     }
   }
 
@@ -344,7 +342,7 @@ object predictionAlgorithm {
     }
     else {
       a2Four += 1
-      line1 + "Y"
+      line + "Y"
     }
 
   }
@@ -606,11 +604,15 @@ object predictionAlgorithm {
    * @param arrive 当前到达
    * @return
    */
-  def algorithmThree(trip: ArrayBuffer[String],metroLineArray: Array[String],departure:String,arrive:String): String = {
+  def algorithmThree(trip: ArrayBuffer[String],metroLineArray: Array[String],departure:String,arrive:String,home: String): String = {
     a3 += 1
     var line = ""
+    var line1 = ""
     for (i <- metroLineArray.indices) {
-      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+      if (arrive == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+    }
+    for (i <- metroLineArray.indices) {
+      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
     }
     line
   }
@@ -671,14 +673,15 @@ object predictionAlgorithm {
 //    else algorithmFiveSecond(trip)
 //  }
 
-  def algorithmFive(cardID:String, trip: ArrayBuffer[String],transferLineArray:Array[String],metroLineArray: Array[String],arrive:String,attArray:Array[(String,Int)]):String = {
+  def algorithmFive(cardID:String, trip: ArrayBuffer[String],transferLineArray:Array[String],metroLineArray: Array[String],departure:String,arrive:String,attArray:Array[(String,Int)],home:String):String = {
     if (tripNew(trip)) {
       a5One += 1
-      algorithmFiveFirst(cardID,trip,arrive,metroLineArray,transferLineArray,attArray) + "V"
+      algorithmFiveFirst1(metroLineArray,departure,arrive) + "V"
+      //algorithmFiveFirst(cardID,trip,arrive,metroLineArray,transferLineArray,attArray) + "V"
     }
     else {
       a5Two += 1
-      algorithmFiveSecond(trip) + "S"
+      algorithmFiveSecond(trip,departure,arrive,home,metroLineArray) + "S"
     }
   }
 
@@ -714,19 +717,48 @@ object predictionAlgorithm {
 //    delegateFunctions.theMaxForTwoArray(a, b)
 //  }
 
-  def algorithmFiveFirst(cardID: String,trip: ArrayBuffer[String], arrive: String, metroLineArray: Array[String],transferLineArray:Array[String],attArray:Array[(String,Int)]):String = {
-    val departureArray: ArrayBuffer[String] = delegateFunctions.metroLineBaseDeparture(metroLineArray, arrive)
-    val distinctTripArray = delegateFunctions.distinctTripBaseDepartureArray(trip,departureArray)
-    val thirdLineArray = delegateFunctions.theThirdLineFromTransferLineArray(transferLineArray)
-    val theNextLineArray = delegateFunctions.theSameElementOfTwoArray(distinctTripArray, thirdLineArray)
-    val result = delegateFunctions.theIntersectionOfArray(theNextLineArray, attArray)
-    //val a = cardID
-    result.sortBy(_._2).last._1
+//  def algorithmFiveFirst(cardID: String,trip: ArrayBuffer[String], arrive: String, metroLineArray: Array[String],transferLineArray:Array[String],attArray:Array[(String,Int)]):String = {
+//    val departureArray: ArrayBuffer[String] = delegateFunctions.metroLineBaseDeparture(metroLineArray, arrive)
+//    val distinctTripArray = delegateFunctions.distinctTripBaseDepartureArray(trip,departureArray)
+//    val thirdLineArray = delegateFunctions.theThirdLineFromTransferLineArray(transferLineArray)
+//    val theNextLineArray = delegateFunctions.theSameElementOfTwoArray(distinctTripArray, thirdLineArray)
+//    val result = delegateFunctions.theIntersectionOfArray(theNextLineArray, attArray)
+//    val a = cardID
+//    result.sortBy(_._2).last._1
+//  }
+
+  def algorithmFiveSecond(trip: ArrayBuffer[String],departure: String,arrive:String,home: String, metroLineArray: Array[String]):String ={
+    val matrixArray = new ArrayBuffer[String]()
+    var line = ""
+    var line1= ""
+    for (i <- metroLineArray.indices) {
+      if (arrive == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+    }
+    for (i <- metroLineArray.indices) {
+      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
+    }
+    val threshold = 2
+    for (i <- trip.indices) {
+      matrixArray += trip(i)
+    }
+    val matrix = constructMarkovMatrix(matrixArray)
+    val maxTimeArray = chooseFromMatrix(matrix,trip)
+    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
+      a1One += 1
+      maxTimeArray(2)
+    }
+    else {
+      a1Two += 1
+      line + "Y"
+    }
   }
 
-  def algorithmFiveSecond(trip: ArrayBuffer[String]):String ={
-    val matrix = constructMarkovMatrix(trip)
-    chooseFromMatrix(matrix, trip)(2)
+  def algorithmFiveFirst1(metroLineArray: Array[String],departure: String, arrive:String):String = {
+    var line = ""
+    for (i <- metroLineArray.indices) {
+      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+    }
+    line
   }
 
 
