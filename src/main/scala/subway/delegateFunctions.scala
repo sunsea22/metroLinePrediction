@@ -268,4 +268,57 @@ object delegateFunctions {
     }
     trip.distinct(tmp)
   }
+
+
+  /**
+   * 根据出发星期和时间构建关于时间的状态转移矩阵
+   * @param trip 历史轨迹
+   * @param weekNum 出发星期
+   * @param timeNum 出发时间
+   * @return
+   */
+  def constructWeekAndTimeMatrix(trip: ArrayBuffer[String], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):Array[Array[Int]] = {
+    val distinctTrip = trip.distinct
+    val weekAndTime = Array((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (5, 1), (5, 2), (6, 0), (6, 1), (6, 2))
+    val resultArray = Array.ofDim[Int](weekAndTime.length, distinctTrip.length)
+    var m = 0
+    var n = 0
+    for (i <- trip.indices) {
+      for (j <- weekAndTime.indices) {
+        if ((weekNum(i),timeNum(i)) == weekAndTime(j)) m = j
+      }
+      for (k <- distinctTrip.indices) {
+        if (trip(i) == distinctTrip(k)) n = k
+      }
+      resultArray(m)(n) += 1
+    }
+    resultArray
+  }
+
+  /**
+   * 从时间转移矩阵中选出转移次数最多的线路
+   * @param trip 历史轨迹
+   * @param matrix 时间转移矩阵
+   * @param weekNum 出发星期
+   * @param timeNum 出发时间
+   * @return
+   */
+  def chooseFromWeekAndTimeMatrix(trip: ArrayBuffer[String], matrix: Array[Array[Int]], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):String = {
+    val currentStatus = (weekNum.last, timeNum.last)
+    val weekAndTime = Array((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (5, 1), (5, 2), (6, 0), (6, 1), (6, 2))
+    var tmp = 0
+    for (i <- weekAndTime.indices) {
+      if (currentStatus == weekAndTime(i)) tmp = i
+    }
+    val distinctTrip = trip.distinct
+    val timeArray = new Array[Int](distinctTrip.length)
+    for(i <- distinctTrip.indices) timeArray(i) = matrix(tmp)(i)
+    val max = maxElementForArray(timeArray)
+    var result = 0
+    for (i <- timeArray.indices) {
+      if (max == timeArray(i)) result = i
+    }
+    distinctTrip(result)
+  }
+
 }

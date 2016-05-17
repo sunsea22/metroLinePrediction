@@ -15,6 +15,7 @@ object predictionAlgorithm {
   var a1Two = 0
   var a1Three = 0
   var a1Four = 0
+  var a1Five = 0
   var a2First = 0
   var a2One = 0
   var a2Two = 0
@@ -81,6 +82,7 @@ object predictionAlgorithm {
     println(a1Two)
     println(a1Three)
     println(a1Four)
+    println(a1Five)
     println(a2First)
     println(a2One)
     println(a2Two)
@@ -308,29 +310,49 @@ object predictionAlgorithm {
     val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
     val maxElement = delegateFunctions.maxElementForArray(patternArray)
     var line = ""
-    var line1= ""
+    var line1 = ""
+    var line2 = ""
     for (i <- metroLineArray.indices) {
       if (arriveArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
     }
+
     for (i <- metroLineArray.indices) {
       if (arriveArray.last == metroLineArray(i).split(",")(0) && departureArray.last == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
+    }
+
+    for (i <- metroLineArray.indices) {
+      if (arriveArray.init.last == metroLineArray(i).split(",")(1) && arriveArray.last == metroLineArray(i).split(",")(0)) line2 = metroLineArray(i).split(",")(2)
     }
     val threshold = 2
     for (i <- trip.indices) {
       matrixArray += trip(i)
     }
     val matrix = constructMarkovMatrix(matrixArray)
-    val secondMatrix = delegateFunctions.constructSecondOrderMarKovMatrix(trip)
 
     val maxTimeArray = chooseFromMatrix(matrix,trip)
     if (tripNew(trip)) {
-      a1One += 1
-      line1 + "Y"
+//      a1One += 1
+//      line1 + "Y"
+      if (maxElement == patternArray(0)) {
+        a1One += 1
+        line1 + "Y"
+      }
+      else if (maxElement == patternArray(1)) {
+        line + "M"
+      }
+      else if (maxElement == patternArray(2)) {
+        trip.last + "R"
+      }
+      else {
+        line + "Z"
+      }
     }
     else if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
       a1Two += 1
       maxTimeArray(2) + "W"
     }
+
+
     else {
       a1Three += 1
       line1 + "V"
@@ -369,18 +391,23 @@ object predictionAlgorithm {
     val maxElement = delegateFunctions.maxElementForArray(patternArray)
     var line = ""
     var line1 = ""
+    var line2 = ""
     for (i <- metroLineArray.indices) {
       if (arriveArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
     }
+
     for (i <- metroLineArray.indices) {
       if (arriveArray.last == metroLineArray(i).split(",")(0) && departureArray.last == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
+    }
+
+    for (i <- metroLineArray.indices) {
+      if (home == metroLineArray(i).split(",")(0) && arriveArray.init.last == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
     }
     val threshold = 2
     for (i <- trip.indices) {
       matrixArray += trip(i)
     }
     val matrix = constructMarkovMatrix(matrixArray)
-    val secondMatrix = delegateFunctions.constructSecondOrderMarKovMatrix(trip)
 
     val maxTimeArray = chooseFromMatrix(matrix, trip)
     for (i <- metroLineArray.indices) {
@@ -392,28 +419,39 @@ object predictionAlgorithm {
 
 
     if (tripNew(trip)) {
-      if (patternArray(0) == maxElement) {
-        a2One += 1
-        line1 + "R"
-      }
-      else if (patternArray(2) == maxElement) {
-        a2Two += 1
-        line1
-        //trip.init.last + "V"
+      if (tripNew(trip.init)) {
+        if (patternArray(0) == maxElement) {
+          a2One += 1
+          line + "R"
+        }
+        else if (patternArray(2) == maxElement) {
+          a2Two += 1
+          trip.init.last + "V"
+        }
+        else {
+          a2Three += 1
+          line + "Z"
+        }
       }
       else {
-        a2Three += 1
-        line1 + "Z"
+        trip.init.last + "S"
       }
     }
     else if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
       a2Four += 1
       maxTimeArray(2) + "W"
     }
-    else {
+
+    else if (tripNew(trip.init)) {
       a2Five += 1
-      delegateFunctions.chooseFromSecondMatrix(secondMatrix, trip) + "M"
+      maxTimeArray(2) + "Y"
     }
+
+    else {
+      a2Six += 1
+      maxTimeArray(2) + "M"
+    }
+
 //    else  {
 //      a2Four += 1
 //      maxTimeArray(2) + "Y"
@@ -431,12 +469,21 @@ object predictionAlgorithm {
 //      maxTimeArray(2) + "W"
 //    }
 //    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == home) {
-//      a2Two += 1
-//      chooseOneLineFromMatrix(matrix, trip) + "Z"
+//      a2Five += 1
+//      chooseOneLineFromMatrix(matrix, trip) + "Y"
+//    }
+//
+//    else {
+//      a2Six += 1
+//      delegateFunctions.chooseFromSecondMatrix(secondMatrix, trip) + "M"
 //    }
 //    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == departureArray.last) {
-//      a2Three +=1
+//      a2Six +=1
 //      chooseOneLineFromMatrix(matrix, trip) + "M"
+//    }
+//    else {
+//      a2First += 1
+//      line1 + "S"
 //    }
 //    else if (patternArray(0) == maxElement) {
 //      a2Four += 1
@@ -713,19 +760,37 @@ object predictionAlgorithm {
   def algorithmThree(trip: ArrayBuffer[String],metroLineArray: Array[String],departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String],home: String): String = {
     var line = ""
     var line1 = ""
+    var line2 = ""
     val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
     val maxElement = delegateFunctions.maxElementForArray(patternArray)
     val matrix = constructMarkovMatrix(trip)
     val chooseLine = chooseFromMatrix(matrix,trip)
+
+
     for (i <- metroLineArray.indices) {
-      if (arriveArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+      if (arriveArray.init.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
     }
+
     for (i <- metroLineArray.indices) {
       if (arriveArray.last == metroLineArray(i).split(",")(0) && departureArray.last == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
     }
-    if (patternArray(0) == maxElement) {
+
+    for (i <- metroLineArray.indices) {
+      if (home == metroLineArray(i).split(",")(0) && departureArray.init.last == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
+    }
+    if (tripNew(trip)) {
+      if (tripNew(trip.init)) {
+        a1Four += 1
+        line2 + "S"
+      }
+      else {
+        a2First += 1
+        trip.init.last + "M"
+      }
+    }
+    else if (patternArray(0) == maxElement) {
       a3One += 1
-      line1 + "R"
+      chooseLine(2) + "R"
     }
     else if (patternArray(2) == maxElement) {
       a3Two += 1
