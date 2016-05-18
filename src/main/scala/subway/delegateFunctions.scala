@@ -283,12 +283,12 @@ object delegateFunctions {
     val resultArray = Array.ofDim[Int](weekAndTime.length, distinctTrip.length)
     var m = 0
     var n = 0
-    for (i <- trip.indices) {
+    for (i <- 0 to (trip.length - 2)) {
       for (j <- weekAndTime.indices) {
         if ((weekNum(i),timeNum(i)) == weekAndTime(j)) m = j
       }
       for (k <- distinctTrip.indices) {
-        if (trip(i) == distinctTrip(k)) n = k
+        if (trip(i+1) == distinctTrip(k)) n = k
       }
       resultArray(m)(n) += 1
     }
@@ -303,7 +303,7 @@ object delegateFunctions {
    * @param timeNum 出发时间
    * @return
    */
-  def chooseFromWeekAndTimeMatrix(trip: ArrayBuffer[String], matrix: Array[Array[Int]], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):String = {
+  def chooseFromWeekAndTimeMatrix(trip: ArrayBuffer[String], matrix: Array[Array[Int]], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):ArrayBuffer[String] = {
     val currentStatus = (weekNum.last, timeNum.last)
     val weekAndTime = Array((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (5, 1), (5, 2), (6, 0), (6, 1), (6, 2))
     var tmp = 0
@@ -313,12 +313,85 @@ object delegateFunctions {
     val distinctTrip = trip.distinct
     val timeArray = new Array[Int](distinctTrip.length)
     for(i <- distinctTrip.indices) timeArray(i) = matrix(tmp)(i)
-    val max = maxElementForArray(timeArray)
-    var result = 0
-    for (i <- timeArray.indices) {
-      if (max == timeArray(i)) result = i
-    }
-    distinctTrip(result)
+    val resultArray = new ArrayBuffer[String]
+
+    val sortArray = timeArray.sortWith(_ > _)
+    val max1 = sortArray(0)
+    val max2 = sortArray(1)
+    val max3 = sortArray(2)
+
+    val trip1 = distinctTrip(confirmLocation(max1,timeArray))
+    val trip2 = distinctTrip(confirmLocation(max2,timeArray))
+    val trip3 = distinctTrip(confirmLocation(max3,timeArray))
+
+    resultArray += trip1 + "->" + max1
+    resultArray += trip2 + "->" + max2
+    resultArray += trip3 + "->" + max3
   }
+
+  /**
+   * 确定一个数在一个数组中的位置
+   * @param a 一个整数
+   * @param tmpArray 数组
+   * @return
+   */
+  def confirmLocation(a: Int, tmpArray: Array[Int]):Int = {
+    var k = 0
+    for (i <- tmpArray.indices) {
+      if (a == tmpArray(i)) k = i
+    }
+    k
+  }
+
+  /**
+   * 返回次数最大的线路
+   * @param lineArray 线路数组,包含次数
+   * @return
+   */
+  def returnMaxForWeekAndTimeMatrix(lineArray: ArrayBuffer[String]):String = {
+    lineArray.head.split("->")(0)
+  }
+
+  /**
+   * 找出三条线路在轨迹中的最近距离
+   * @param trip 历史轨迹
+   * @param resultArray 三条线路集合，包含次数
+   * @return
+   */
+  def tripLengthForWeekAndTime(trip: ArrayBuffer[String], resultArray: ArrayBuffer[String]):String = {
+    if (resultArray(1).split("->")(1).toInt == 0 && resultArray(2).split("->")(1).toInt == 0) resultArray.head.split("->")(0)
+    else if (resultArray(1).split("->")(1).toInt != 0 && resultArray(2).split("->")(1).toInt == 0) {
+      val tShort1 = tShortForTrip(trip,resultArray.head.split("->")(0))
+      val tShort2 = tShortForTrip(trip,resultArray(1).split("->")(1))
+      if (tShort1 < tShort2) resultArray.head.split("->")(0)
+      else resultArray(1).split("->")(0)
+    }
+    else {
+      val tShort1 = tShortForTrip(trip,resultArray.head.split("->")(0))
+      val tShort2 = tShortForTrip(trip,resultArray(1).split("->")(1))
+      val tShort3 = tShortForTrip(trip,resultArray(2).split("->")(0))
+      val tShort = List(tShort1, tShort2, tShort3)
+      val min = tShort.min
+
+      if (min == tShort1) resultArray.head.split("->")(0)
+      else if (min == tShort2) resultArray(1).split("->")(0)
+      else resultArray(2).split("->")(0)
+    }
+  }
+
+  /**
+   * 线路在历史轨迹中的最近距离
+   * @param trip 历史轨迹
+   * @param tmp 线路
+   * @return
+   */
+  def tShortForTrip(trip: ArrayBuffer[String], tmp: String):Int = {
+    var k = 0
+    for (i <- (trip.length - 1) to 0 by (-1)) {
+      if (trip(i) == tmp) k = trip.length - i
+    }
+    k
+  }
+
 
 }

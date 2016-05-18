@@ -122,9 +122,9 @@ object predictionAlgorithm {
         }
         if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
         else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,departureArray,arriveArray,attArray,x.residence)
-        else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departureArray,arriveArray)
+        else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departureArray,arriveArray,weekNumArray,timeNumArray)
         else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence,weekNumArray,timeNumArray,departureArray,arriveArray)
-        else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departureArray,arriveArray,x.residence)
+        else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departureArray,arriveArray,x.residence,weekNumArray,timeNumArray)
         else predictionLine += "A4" + "->" + algorithmFour(tmpArray, weekNumArray, timeNumArray)
       }
       x.cardId + "," + calculateAccuracy(predictionLine, trip)
@@ -305,7 +305,7 @@ object predictionAlgorithm {
    * @param arriveArray 到达
    * @return
    */
-  def algorithmOne(trip: ArrayBuffer[String], metroLineArray: Array[String], home: String,departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String]): String = {
+  def algorithmOne(trip: ArrayBuffer[String], metroLineArray: Array[String], home: String,departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int]): String = {
     val matrixArray = new ArrayBuffer[String]()
     val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
     val maxElement = delegateFunctions.maxElementForArray(patternArray)
@@ -323,11 +323,12 @@ object predictionAlgorithm {
     for (i <- metroLineArray.indices) {
       if (arriveArray.init.last == metroLineArray(i).split(",")(1) && arriveArray.last == metroLineArray(i).split(",")(0)) line2 = metroLineArray(i).split(",")(2)
     }
-    val threshold = 2
+    val threshold = 0
     for (i <- trip.indices) {
       matrixArray += trip(i)
     }
     val matrix = constructMarkovMatrix(matrixArray)
+    val weekAndTimeMatrix = delegateFunctions.constructWeekAndTimeMatrix(trip,weekNum,timeNum)
 
     val maxTimeArray = chooseFromMatrix(matrix,trip)
     if (tripNew(trip)) {
@@ -403,61 +404,67 @@ object predictionAlgorithm {
     for (i <- metroLineArray.indices) {
       if (home == metroLineArray(i).split(",")(0) && arriveArray.init.last == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
     }
-    val threshold = 2
+    val threshold = 1
     for (i <- trip.indices) {
       matrixArray += trip(i)
     }
     val matrix = constructMarkovMatrix(matrixArray)
 
     val maxTimeArray = chooseFromMatrix(matrix, trip)
+
+//    for (i <- metroLineArray.indices) {
+//      if (chooseOneLineFromMatrix(matrix, trip) == metroLineArray(i).split(",")(2)) {
+//        chooseLineDeparture = metroLineArray(i).split(",")(0)
+//        chooseLineArrive = metroLineArray(i).split(",")(1)
+//      }
+//    }
+
     for (i <- metroLineArray.indices) {
-      if (chooseOneLineFromMatrix(matrix, trip) == metroLineArray(i).split(",")(2)) {
+      if (maxTimeArray(2) == metroLineArray(i).split(",")(2)) {
         chooseLineDeparture = metroLineArray(i).split(",")(0)
         chooseLineArrive = metroLineArray(i).split(",")(1)
       }
     }
 
+    val weekAndTimeMatrix = delegateFunctions.constructWeekAndTimeMatrix(trip,weekNum,timeNum)
+    val lineArray = delegateFunctions.chooseFromWeekAndTimeMatrix(trip, weekAndTimeMatrix,weekNum, timeNum)
 
     if (tripNew(trip)) {
-      if (tripNew(trip.init)) {
-        if (patternArray(0) == maxElement) {
-          a2One += 1
-          line + "R"
-        }
-        else if (patternArray(2) == maxElement) {
-          a2Two += 1
-          trip.init.last + "V"
-        }
-        else {
-          a2Three += 1
-          line + "Z"
-        }
-      }
-      else {
-        trip.init.last + "S"
-      }
+      a2One += 1
+      delegateFunctions.returnMaxForWeekAndTimeMatrix(lineArray) + "R"
+//      if (tripNew(trip.init)) {
+//        if (patternArray(0) == maxElement) {
+//          a2One += 1
+//          line + "R"
+//        }
+//        else if (patternArray(2) == maxElement) {
+//          a2Two += 1
+//          trip.init.last + "V"
+//        }
+//        else {
+//          a2Three += 1
+//          line + "Z"
+//        }
+//      }
+//      else {
+//        trip.init.last + "S"
+//      }
     }
     else if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
       a2Four += 1
       maxTimeArray(2) + "W"
     }
-
-    else if (tripNew(trip.init)) {
-      a2Five += 1
+    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == home) {
       maxTimeArray(2) + "Y"
     }
-
-    else {
-      a2Six += 1
-      maxTimeArray(2) + "M"
+    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == departureArray.last) {
+      maxTimeArray(2) + "S"
     }
-
-//    else  {
-//      a2Four += 1
-//      maxTimeArray(2) + "Y"
-//    }
-
-
+    else {
+        a2Six += 1
+        //line1 + "M" 19
+        maxTimeArray(2) + "M"
+    }
 
 
 //    if (maxTimeArray.head.toInt != 0 && maxTimeArray(1).toInt == 0) {
@@ -467,10 +474,6 @@ object predictionAlgorithm {
 //    else if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
 //      a2One += 1
 //      maxTimeArray(2) + "W"
-//    }
-//    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == home) {
-//      a2Five += 1
-//      chooseOneLineFromMatrix(matrix, trip) + "Y"
 //    }
 //
 //    else {
@@ -757,7 +760,7 @@ object predictionAlgorithm {
    * @param arriveArray 当前到达
    * @return
    */
-  def algorithmThree(trip: ArrayBuffer[String],metroLineArray: Array[String],departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String],home: String): String = {
+  def algorithmThree(trip: ArrayBuffer[String],metroLineArray: Array[String],departureArray:ArrayBuffer[String],arriveArray: ArrayBuffer[String],home: String, weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int]): String = {
     var line = ""
     var line1 = ""
     var line2 = ""
@@ -765,6 +768,9 @@ object predictionAlgorithm {
     val maxElement = delegateFunctions.maxElementForArray(patternArray)
     val matrix = constructMarkovMatrix(trip)
     val chooseLine = chooseFromMatrix(matrix,trip)
+
+    val weekAndTimeMatrix = delegateFunctions.constructWeekAndTimeMatrix(trip,weekNum,timeNum)
+    val lineArray =  delegateFunctions.chooseFromWeekAndTimeMatrix(trip, weekAndTimeMatrix, weekNum, timeNum)
 
 
     for (i <- metroLineArray.indices) {
@@ -779,14 +785,15 @@ object predictionAlgorithm {
       if (home == metroLineArray(i).split(",")(0) && departureArray.init.last == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
     }
     if (tripNew(trip)) {
-      if (tripNew(trip.init)) {
-        a1Four += 1
-        line2 + "S"
-      }
-      else {
-        a2First += 1
-        trip.init.last + "M"
-      }
+      delegateFunctions.returnMaxForWeekAndTimeMatrix(lineArray) + "S"
+//      if (tripNew(trip.init)) {
+//        a1Four += 1
+//        line2 + "S"
+//      }
+//      else {
+//        a2First += 1
+//        trip.init.last + "M"
+//      }
     }
     else if (patternArray(0) == maxElement) {
       a3One += 1
