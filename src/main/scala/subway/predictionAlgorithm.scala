@@ -35,38 +35,38 @@ object predictionAlgorithm {
     val conf = new SparkConf().setMaster("local[6]").setAppName("prediction")
     val sc = new SparkContext(conf)
 
-    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/sampleChangeResidence")
+    val rdd = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/testData")
     val metroLine = sc.textFile("/Users/Flyln/Desktop/predictData/metroLine")
     val trainingData = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/trainingData")
-    val transferLine = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/transferLine")
-    val cluster = sc.textFile("/Users/Flyln/Desktop/predictData/cluster/cardId-ClusterId-tripList")
+//    val transferLine = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/transferLine")
+//    val cluster = sc.textFile("/Users/Flyln/Desktop/predictData/cluster/cardId-ClusterId-tripList")
 
 
-    val transferLineArray: Array[String] = transferLine.collect()
+//    val transferLineArray: Array[String] = transferLine.collect()
     val metroLineArray = metroLine.collect()
-    val clusterResult = cluster.collect()
+//    val clusterResult = cluster.collect()
 
-    val clusterArray = cluster.map(_.split(",")).map(x => {
-      val tripList = new ArrayBuffer[(String,String)]
-      val trip = x(2).split("->").slice(0, x(2).split("->").length - 5)
-      for (i <- trip.indices) tripList += ((x(1),trip(i)))
-      tripList.map((_,1))
-    }).flatMap(x => x).reduceByKey(_+_).collect()
+//    val clusterArray = cluster.map(_.split(",")).map(x => {
+//      val tripList = new ArrayBuffer[(String,String)]
+//      val trip = x(2).split("->").slice(0, x(2).split("->").length - 5)
+//      for (i <- trip.indices) tripList += ((x(1),trip(i)))
+//      tripList.map((_,1))
+//    }).flatMap(x => x).reduceByKey(_+_).collect()
 
-    val attArray: Array[(String, Int)] = rdd.map(_.split(",")).map(r => passengerTripListAddFeatures(r(0), r(1), r(2), r(3), r(4), r(5), r(6), r(7), r(8))).map(x => {
-      val tripArray = x.tripList.split("->")
-      val tmpArray = new ArrayBuffer[String]
-      for (i <- x.tripList.split("->").indices) {
-        tmpArray += tripArray(i)
-      }
-      tmpArray.map((_, 1))
-    }).flatMap(x => x).reduceByKey(_ + _).collect()
+//    val attArray: Array[(String, Int)] = rdd.map(_.split(",")).map(r => passengerTripListAddFeatures(r(0), r(1), r(2), r(3), r(4), r(5), r(6), r(7), r(8))).map(x => {
+//      val tripArray = x.tripList.split("->")
+//      val tmpArray = new ArrayBuffer[String]
+//      for (i <- x.tripList.split("->").indices) {
+//        tmpArray += tripArray(i)
+//      }
+//      tmpArray.map((_, 1))
+//    }).flatMap(x => x).reduceByKey(_ + _).collect()
 
-    val weekAndTimeLine: Array[(String, Int)] = rdd.map(_.split(",")).map(x => x(4) + "," + x(5) + "," + x(6)).map(_.split(",")).map(x => {
-      val tmpArray = new ArrayBuffer[String]
-      for (i <- 0 to (x(0).split("=>").length - 6)) tmpArray += x(0).split("=>")(i) + "->" + x(1).split("=>")(i) + "=>" + x(2).split("->")(i)
-      tmpArray.map((_,1))
-    }).flatMap(x => x).reduceByKey(_+_).collect()
+//    val weekAndTimeLine: Array[(String, Int)] = rdd.map(_.split(",")).map(x => x(4) + "," + x(5) + "," + x(6)).map(_.split(",")).map(x => {
+//      val tmpArray = new ArrayBuffer[String]
+//      for (i <- 0 to (x(0).split("=>").length - 6)) tmpArray += x(0).split("=>")(i) + "->" + x(1).split("=>")(i) + "=>" + x(2).split("->")(i)
+//      tmpArray.map((_,1))
+//    }).flatMap(x => x).reduceByKey(_+_).collect()
 
     val data = trainingData.map(_.split(",")).map(x => x(7) + "," + x(8))
     val parsedData = data.map(line => {
@@ -75,7 +75,7 @@ object predictionAlgorithm {
     })
     val bayesNewOrHistory: NaiveBayesModel = NaiveBayes.train(parsedData, lambda = 1.0, modelType = "multinomial")
 
-    val result = startUp(rdd,metroLineArray,bayesNewOrHistory,attArray,transferLineArray,weekAndTimeLine,clusterArray,clusterResult)
+    val result = startUp(rdd,metroLineArray,bayesNewOrHistory)
 
       result.repartition(1).saveAsTextFile("/Users/Flyln/Desktop/predictData/moreThan100/result")
     println(a1One)
@@ -99,7 +99,7 @@ object predictionAlgorithm {
     println(a5Four)
   }
 
-  def startUp(rdd: RDD[String],metroLineArray: Array[String],bayesNewOrHistory: NaiveBayesModel,attArray:Array[(String,Int)],transferLineArray: Array[String],weekAndTimeLine:Array[(String,Int)],clusterArray: Array[((String,String),Int)],clusterResult:Array[String]): RDD[String] = {
+  def startUp(rdd: RDD[String],metroLineArray: Array[String],bayesNewOrHistory: NaiveBayesModel): RDD[String] = {
     val decision = rdd.map(_.split(",")).map(x => passengerTripListAddFeatures(x(0), x(1), x(2), x(3), x(4), x(5), x(6), x(7), x(8))).map(x => {
       val trip = x.tripList.split("->")
       val weekNum = x.weekNum.split("=>")
@@ -120,8 +120,8 @@ object predictionAlgorithm {
           departureArray += departure(j)
           arriveArray += arrive(j)
         }
-        if (tmpArray.distinct.size == 1) predictionLine += tmpArray.last
-        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,departureArray,arriveArray,attArray,x.residence)
+        if (tmpArray.distinct.size == 1) predictionLine += "A5" + "->" + tmpArray.last
+//        else if (x.fourFeatures.split(" ")(2).toDouble < 5.0) predictionLine += "A5" + "->" + algorithmFive(x.cardId,tmpArray,transferLineArray,metroLineArray,departureArray,arriveArray,attArray,x.residence)
         else if (departure(i) == x.residence) predictionLine += "A1" + "->" + algorithmOne(tmpArray, metroLineArray, x.residence,departureArray,arriveArray,weekNumArray,timeNumArray)
         else if (arrive(i) != x.residence) predictionLine += "A2" + "->" + algorithmTwo(tmpArray, metroLineArray, x.residence,weekNumArray,timeNumArray,departureArray,arriveArray)
         else if (bayesNewOrHistory.predict(bayesDataFormat(x.labelNew + "," + x.fourFeatures).features) == 1.0) predictionLine += "A3" + "->" + algorithmThree(tmpArray,metroLineArray,departureArray,arriveArray,x.residence,weekNumArray,timeNumArray)
@@ -328,7 +328,6 @@ object predictionAlgorithm {
       matrixArray += trip(i)
     }
     val matrix = constructMarkovMatrix(matrixArray)
-    val weekAndTimeMatrix = delegateFunctions.constructWeekAndTimeMatrix(trip,weekNum,timeNum)
 
     val maxTimeArray = chooseFromMatrix(matrix,trip)
     if (tripNew(trip)) {
@@ -388,8 +387,6 @@ object predictionAlgorithm {
     val matrixArray = new ArrayBuffer[String]()
     var chooseLineDeparture = ""
     var chooseLineArrive = ""
-    val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
-    val maxElement = delegateFunctions.maxElementForArray(patternArray)
     var line = ""
     var line1 = ""
     var line2 = ""
@@ -453,12 +450,6 @@ object predictionAlgorithm {
     else if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
       a2Four += 1
       maxTimeArray(2) + "W"
-    }
-    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == home) {
-      maxTimeArray(2) + "Y"
-    }
-    else if (chooseLineDeparture == arriveArray.last && chooseLineArrive == departureArray.last) {
-      maxTimeArray(2) + "S"
     }
     else {
         a2Six += 1
@@ -836,28 +827,37 @@ object predictionAlgorithm {
    * @return
    */
   def algorithmFour(trip: ArrayBuffer[String], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]): String = {
-    val attShortMatrix = calculateTShortAndAtt(trip)
-    val timeMatrix = calculateTimesBaseCurrent(trip)
-    //val weekTimeMatrix = basedCurrentFromWeekAndTime(trip, weekNum, timeNum)
-    val weekTimeMatrix = theNextCurrentFromWeekAndTime(trip,weekNum,timeNum)
-    val resultArray = Array.ofDim[Double](trip.distinct.size, 2)
-    val valueArray = new Array[Double](trip.distinct.size)
-    for (i <- trip.distinct.indices) {
-      valueArray(i) = (0.5 * attShortMatrix(i)(2) + 0.5 * (timeMatrix(i)(1) + weekTimeMatrix(i)(1))) / attShortMatrix(i)(1).toFloat
-    }
-    for (i <- trip.distinct.indices) {
-      resultArray(i)(0) = trip.distinct(i).toDouble
-      resultArray(i)(1) = valueArray(i)
-    }
-    var max = resultArray(0)(0)
-    for (i <- trip.distinct.indices) {
-      if (resultArray(i)(1) > max) max = resultArray(i)(1)
-    }
-    var k = 0
-    for (i <- trip.distinct.indices) {
-      if (resultArray(i)(1) == max) k = i
-    }
-    resultArray(k)(0).toInt.toString
+    val matrix = constructMarkovMatrix(trip)
+    val timeArray = chooseFromMatrix(matrix,trip)
+
+    val weekAndTimeMatrix = delegateFunctions.constructWeekAndTimeMatrix(trip,weekNum,timeNum)
+    val lineArray = delegateFunctions.chooseFromWeekAndTimeMatrix(trip,weekAndTimeMatrix,weekNum,timeNum)
+
+    if (tripNew(trip)) delegateFunctions.returnMaxForWeekAndTimeMatrix(lineArray) + "S"
+
+    else timeArray(2) + "W"
+//    val attShortMatrix = calculateTShortAndAtt(trip)
+//    val timeMatrix = calculateTimesBaseCurrent(trip)
+//    //val weekTimeMatrix = basedCurrentFromWeekAndTime(trip, weekNum, timeNum)
+//    val weekTimeMatrix = theNextCurrentFromWeekAndTime(trip,weekNum,timeNum)
+//    val resultArray = Array.ofDim[Double](trip.distinct.size, 2)
+//    val valueArray = new Array[Double](trip.distinct.size)
+//    for (i <- trip.distinct.indices) {
+//      valueArray(i) = (0.5 * attShortMatrix(i)(2) + 0.5 * (timeMatrix(i)(1) + weekTimeMatrix(i)(1))) / attShortMatrix(i)(1).toFloat
+//    }
+//    for (i <- trip.distinct.indices) {
+//      resultArray(i)(0) = trip.distinct(i).toDouble
+//      resultArray(i)(1) = valueArray(i)
+//    }
+//    var max = resultArray(0)(0)
+//    for (i <- trip.distinct.indices) {
+//      if (resultArray(i)(1) > max) max = resultArray(i)(1)
+//    }
+//    var k = 0
+//    for (i <- trip.distinct.indices) {
+//      if (resultArray(i)(1) == max) k = i
+//    }
+//    resultArray(k)(0).toInt.toString
   }
 
 //  def algorithmFive(departureArray: ArrayBuffer[String],arriveArray: ArrayBuffer[String],trip: ArrayBuffer[String], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int], attArray: Array[(String,Int)],metroLineArray: Array[String],transferLineArray: Array[String],weekAndTimeLine: Array[(String, Int)]):String={
@@ -865,17 +865,17 @@ object predictionAlgorithm {
 //    else algorithmFiveSecond(trip)
 //  }
 
-  def algorithmFive(cardID:String, trip: ArrayBuffer[String],transferLineArray:Array[String],metroLineArray: Array[String],departureArray: ArrayBuffer[String], arriveArray: ArrayBuffer[String],attArray:Array[(String,Int)],home:String):String = {
-    if (tripNew(trip)) {
-      a5One += 1
-      algorithmFiveFirst1(trip,metroLineArray,departureArray,arriveArray,home)
-      //algorithmFiveFirst(cardID,trip,arrive,metroLineArray,transferLineArray,attArray) + "V"
-    }
-    else {
-      a5Two += 1
-      algorithmFiveSecond(trip,departureArray.last,arriveArray.last,home,metroLineArray)
-    }
-  }
+//  def algorithmFive(cardID:String, trip: ArrayBuffer[String],transferLineArray:Array[String],metroLineArray: Array[String],departureArray: ArrayBuffer[String], arriveArray: ArrayBuffer[String],attArray:Array[(String,Int)],home:String):String = {
+//    if (tripNew(trip)) {
+//      a5One += 1
+//      algorithmFiveFirst1(trip,metroLineArray,departureArray,arriveArray,home)
+//      //algorithmFiveFirst(cardID,trip,arrive,metroLineArray,transferLineArray,attArray) + "V"
+//    }
+//    else {
+//      a5Two += 1
+//      algorithmFiveSecond(trip,departureArray.last,arriveArray.last,home,metroLineArray)
+//    }
+//  }
 
 //  def algorithmFiveFirst(cardId:String,trip: ArrayBuffer[String],weekNum:ArrayBuffer[Int],timeNum:ArrayBuffer[Int],clusterArray: Array[((String,String),Int)],clusterResult:Array[String],transferLineArray:Array[String],weekAndTimeLine:Array[(String,Int)],metroLineArray: Array[String],arrive:String):String= {
 //    var clusterID = ""
@@ -919,75 +919,75 @@ object predictionAlgorithm {
 //    result.sortBy(_._2).last._1
 //  }
 
-  def algorithmFiveSecond(trip: ArrayBuffer[String],departure: String,arrive:String,home: String, metroLineArray: Array[String]):String ={
-    val matrixArray = new ArrayBuffer[String]()
-    var line = ""
-    var line1= ""
-    for (i <- metroLineArray.indices) {
-      if (arrive == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
-    }
-    for (i <- metroLineArray.indices) {
-      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
-    }
-    val threshold = 2
-    for (i <- trip.indices) {
-      matrixArray += trip(i)
-    }
-    val matrix = constructMarkovMatrix(matrixArray)
-    val maxTimeArray = chooseFromMatrix(matrix,trip)
-    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
-      a5One += 1
-      maxTimeArray(2) + "V"
-    }
-    else {
-      a5Two += 1
-      maxTimeArray(2) + "Y"
-    }
-  }
+//  def algorithmFiveSecond(trip: ArrayBuffer[String],departure: String,arrive:String,home: String, metroLineArray: Array[String]):String ={
+//    val matrixArray = new ArrayBuffer[String]()
+//    var line = ""
+//    var line1= ""
+//    for (i <- metroLineArray.indices) {
+//      if (arrive == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+//    }
+//    for (i <- metroLineArray.indices) {
+//      if (arrive == metroLineArray(i).split(",")(0) && departure == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
+//    }
+//    val threshold = 2
+//    for (i <- trip.indices) {
+//      matrixArray += trip(i)
+//    }
+//    val matrix = constructMarkovMatrix(matrixArray)
+//    val maxTimeArray = chooseFromMatrix(matrix,trip)
+//    if (maxTimeArray.head.toInt - maxTimeArray(1).toInt > threshold) {
+//      a5One += 1
+//      maxTimeArray(2) + "V"
+//    }
+//    else {
+//      a5Two += 1
+//      maxTimeArray(2) + "Y"
+//    }
+//  }
 
-  def algorithmFiveFirst1(trip: ArrayBuffer[String], metroLineArray: Array[String],departureArray: ArrayBuffer[String], arriveArray: ArrayBuffer[String], home: String):String = {
-    var line = ""
-    var line1 = ""
-    var line2 = ""
+//  def algorithmFiveFirst1(trip: ArrayBuffer[String], metroLineArray: Array[String],departureArray: ArrayBuffer[String], arriveArray: ArrayBuffer[String], home: String):String = {
+//    var line = ""
+//    var line1 = ""
+//    var line2 = ""
 //    val departureBaseArriveArray = delegateFunctions.metroLineBaseDeparture(metroLineArray, arriveArray.last)
 //    val distinctTripArray = delegateFunctions.distinctTripBaseDepartureArray(trip, departureBaseArriveArray)
 //
 //    val departureBaseDepartureArray = delegateFunctions.metroLineBaseDeparture(metroLineArray, departureArray.last)
 //    val distinctTripArray1 = delegateFunctions.distinctTripBaseDepartureArray(trip, departureBaseDepartureArray)
 
-    val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
-    val maxElement = delegateFunctions.maxElementForArray(patternArray)
-
-    for (i <- metroLineArray.indices) {
-      if (arriveArray.last == metroLineArray(i).split(",")(0) && departureArray.last == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
-    }
-
-    for (i <- metroLineArray.indices) {
-      if (arriveArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
-    }
-
-    for (i <- metroLineArray.indices) {
-      if (departureArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
-    }
-
-    if (patternArray(0) == maxElement) {
-      a5Three += 1
-      line + "R"
-    }
-    else if (patternArray(1) == maxElement) {
-      line1 + "W"
-    }
-    else if (patternArray(2) == maxElement) {
-      a5Four += 1
-      line + "S"
-    }
-    else if (patternArray(3) == maxElement) {
-      line2 + "Z"
-    }
-    else {
-      line + "M"
-    }
-  }
+//    val patternArray = delegateFunctions.patternChoose(departureArray,arriveArray)
+//    val maxElement = delegateFunctions.maxElementForArray(patternArray)
+//
+//    for (i <- metroLineArray.indices) {
+//      if (arriveArray.last == metroLineArray(i).split(",")(0) && departureArray.last == metroLineArray(i).split(",")(1)) line = metroLineArray(i).split(",")(2)
+//    }
+//
+//    for (i <- metroLineArray.indices) {
+//      if (arriveArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line1 = metroLineArray(i).split(",")(2)
+//    }
+//
+//    for (i <- metroLineArray.indices) {
+//      if (departureArray.last == metroLineArray(i).split(",")(0) && home == metroLineArray(i).split(",")(1)) line2 = metroLineArray(i).split(",")(2)
+//    }
+//
+//    if (patternArray(0) == maxElement) {
+//      a5Three += 1
+//      line + "R"
+//    }
+//    else if (patternArray(1) == maxElement) {
+//      line1 + "W"
+//    }
+//    else if (patternArray(2) == maxElement) {
+//      a5Four += 1
+//      line + "S"
+//    }
+//    else if (patternArray(3) == maxElement) {
+//      line2 + "Z"
+//    }
+//    else {
+//      line + "M"
+//    }
+//  }
 
 
 

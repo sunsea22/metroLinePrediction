@@ -14,13 +14,13 @@ object theMostVisitedLine {
     val conf = new SparkConf().setMaster("local").setAppName("mostVisited")
     val sc = new SparkContext(conf)
 
-    val data = sc.textFile("/Users/Flyln/Desktop/predictData/sample1101")
+    val data = sc.textFile("/Users/Flyln/Desktop/predictData/moreThan100/testData")
 
-    val result: RDD[Double] = data.map(_.split(",")).map(x => passengerTripListAddFeatures(x(0),x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8))).map(x => {
-      val tripArray = new ArrayBuffer[String]
+    val result = data.map(_.split(",")).map(x => passengerTripListAddFeatures(x(0),x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8))).map(x => {
       val predictLine = new ArrayBuffer[String]
       val trip: Array[String] = x.tripList.split("->")
       for (i <- (trip.length - 6) to (trip.length - 2)) {
+        val tripArray = new ArrayBuffer[String]
         for (j <- 0 to i) tripArray += trip(j)
         val distinctTripArray = tripArray.distinct
         val timeArray = new Array[Int](distinctTripArray.length)
@@ -39,11 +39,36 @@ object theMostVisitedLine {
         }
         predictLine += distinctTripArray(k)
       }
-      accuracyLine(predictLine, trip)
+      x.cardId + "," + trip.distinct.length + "," +  accuracyLine(predictLine, trip)
     })
 
-    result.saveAsTextFile("")
+    result.repartition(1).saveAsTextFile("/Users/Flyln/Desktop/predictData/moreThan100/baseLine")
 
+    val result1 = data.map(_.split(",")).map(x => passengerTripListAddFeatures(x(0),x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8))).map(x => {
+      val predictLine = new ArrayBuffer[String]
+      val trip = x.tripList.split("->")
+      for (i <- (trip.length - 6) to (trip.length - 2)) {
+        val tripArray = new ArrayBuffer[String]
+        for (j <- 0 to i) tripArray += trip(1)
+        predictLine += marKovChain.oneOrderMarKov(tripArray)
+      }
+      x.cardId + "," + trip.distinct.length + "," + accuracyLine(predictLine, trip)
+    })
+
+    result1.repartition(1).saveAsTextFile("/Users/Flyln/Desktop/predictData/moreThan100/1-MMC")
+
+
+    val result2 = data.map(_.split(",")).map(x => passengerTripListAddFeatures(x(0),x(1),x(2),x(3),x(4),x(5),x(6),x(7),x(8))).map(x => {
+      val predictLine = new ArrayBuffer[String]
+      val trip = x.tripList.split("->")
+      for (i <- (trip.length - 6) to (trip.length - 2)) {
+        val tripArray = new ArrayBuffer[String]
+        for (j <- 0 to i) tripArray += trip(1)
+        predictLine += marKovChain.twoOrderMarKov(tripArray)
+      }
+      x.cardId + "," + trip.distinct.length + "," + accuracyLine(predictLine, trip)
+    })
+    result2.repartition(1).saveAsTextFile("/Users/Flyln/Desktop/predictData/moreThan100/2-MMC")
   }
 
   def accuracyLine(predictLine: ArrayBuffer[String], trip: Array[String]):Double = {

@@ -1,6 +1,6 @@
 package subway
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 
 /**一些公用的方法
  * Created by Flyln on 16/5/12.
@@ -317,16 +317,11 @@ object delegateFunctions {
 
     val sortArray = timeArray.sortWith(_ > _)
     val max1 = sortArray(0)
-    val max2 = sortArray(1)
-    val max3 = sortArray(2)
+
 
     val trip1 = distinctTrip(confirmLocation(max1,timeArray))
-    val trip2 = distinctTrip(confirmLocation(max2,timeArray))
-    val trip3 = distinctTrip(confirmLocation(max3,timeArray))
 
     resultArray += trip1 + "->" + max1
-    resultArray += trip2 + "->" + max2
-    resultArray += trip3 + "->" + max3
   }
 
   /**
@@ -393,5 +388,88 @@ object delegateFunctions {
     k
   }
 
+  /**
+   * 计算各个时间段线路的次数
+   * @param trip 历史轨迹
+   * @param weekNum 出发星期
+   * @param timeNum 出发时间
+   * @return
+   */
+  def attAboutWeekAndTime(trip: ArrayBuffer[String], weekNum: ArrayBuffer[Int], timeNum: ArrayBuffer[Int]):Array[Array[Int]] = {
+    val weekAndTime = Array((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (5, 1), (5, 2), (6, 0), (6, 1), (6, 2))
+    val distinctTrip = trip.distinct
+    val resultArray = Array.ofDim[Int](weekAndTime.length, distinctTrip.length)
+    var m = 0
+    var n = 0
+    for (i <- trip.indices) {
+      for (j <- weekAndTime.indices) {
+        if ((weekNum(i),timeNum(i)) == weekAndTime(j)) m = j
+      }
+      for (k <- distinctTrip.indices) {
+        if (trip(i) == distinctTrip(k)) n = k
+      }
+      resultArray(m)(n) += 1
+    }
+    resultArray
+  }
+
+  /**
+   * 构建一阶MarKov状态转移矩阵
+   * @param tripList 历史轨迹
+   * @return
+   */
+  def constructMarkovMatrix(tripList: ArrayBuffer[String]):Array[Array[Int]] = {
+    val tmpList = new ListBuffer[String]()
+    for (i <- tripList.indices) {
+      tmpList += tripList(i)
+    }
+    val tmp = tmpList.distinct
+    val transferMatrix = Array.ofDim[Int](tmp.size,tmp.size)
+    var m = 0
+    var n = 0
+    for (i <- 0 to (tripList.size - 2)) {
+      for (k <- tmp.indices) {
+        if (tripList(i) == tmp(k)) m = k
+      }
+      for (j <- tmp.indices) {
+        if (tripList(i+1) == tmp(j)) n = j
+      }
+      transferMatrix(m)(n) += 1
+    }
+    transferMatrix
+  }
+
+  /**
+   * 从一阶状态转移矩阵中选取两条次数最高的线路
+   * @param matrix 状态转移矩阵
+   * @param trip 历史轨迹
+   * @return
+   */
+  def chooseFromMatrix(matrix:Array[Array[Int]],trip:ArrayBuffer[String]):ArrayBuffer[String]={
+    val result = new ArrayBuffer[String]
+    val tmpList = new ListBuffer[String]
+    var tmpRow = 0
+    var tmpClu = 0
+    val timeList = new ListBuffer[Int]
+    val currentLine = trip.last
+    for (i <- trip.indices) {
+      tmpList += trip(i)
+    }
+    val uniqueTmp = tmpList.distinct
+    for (i <- uniqueTmp.indices) {
+      if (currentLine == uniqueTmp(i)) tmpRow = i
+    }
+    for (j <- matrix.indices) {
+      timeList += matrix(tmpRow)(j)
+    }
+    val a = timeList.sorted.last
+    val b = timeList.sorted.init.last
+    for (i <- timeList.indices) {
+      if (timeList(i) == a) tmpClu = i
+    }
+    result += a.toString
+    result += b.toString
+    result += uniqueTmp(tmpClu)
+  }
 
 }
